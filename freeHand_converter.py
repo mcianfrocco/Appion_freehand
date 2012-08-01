@@ -213,15 +213,29 @@ def eman2_angConv(paramout,num_mod,ctf,mag):
 
 		eman2_mods(num_mod,model,mod_count,debug)
 
-		eman2_parts(tilt,mod_count,debug)
+		eman2_parts('%s_%02d.img' %(tilt[:-4],mod_count),debug)
 
-def eman2_parts(tilt,mod_count,debug):
+def eman2_parts(stack,debug):
+
         #Convert tilted particles to 3D-MRC format                
 
-        cmd = '%s/im_to_mrc.py -f %s_%02d.img ' %(cwd,tilt[:-4],mod_count)
-	if debug is True:
-		print cmd
-        subprocess.Popen(cmd,shell=True).wait()
+        # get box size
+        im=EMData.read_images(stack,[0])
+        nx = im[0].get_xsize()
+        del im
+	nimg = EMUtil.get_image_count(stack)
+
+        img = EMData(nx,nx,nimg)
+        img.write_image(stack[:-4]+'.mrc')
+
+	i = 1
+
+        while i < nimg:
+                d = EMData()
+                d.read_image(stack, i)
+                region = Region(0, 0, i, nx, nx, 1)
+                d.write_image(stack[:-4]+".mrc",0,EMUtil.get_image_ext_type("mrc"), False, region, EMUtil.EMDataType.EM_FLOAT, True)
+        	i = i + 1
 
 def eman2_mods(num_mod,model,mod_count,debug):
 
@@ -229,35 +243,17 @@ def eman2_mods(num_mod,model,mod_count,debug):
 
         if num_mod > 1:
 
-                cmd = '%s/e2proc3d_all.py %s %s' %(cwd,model,mod_count)
-                subprocess.Popen(cmd,shell=True).wait()
-
-                cmd = 'rm %s_%03d.spi' %(model[:-4],mod_count)
-                subprocess.Popen(cmd,shell=True).wait()
-
-                cmd = 'mv %s_%03d_mr.spi %s_%03d.spi' %(model[:-4],mod_count,model[:-4],mod_count)
-                subprocess.Popen(cmd,shell=True).wait()
+                cmd = 'e2proc3d.py --first=%s --last=%s %s %s_%03d.mrc' %(model,model[:-4],mod_count)
+        	if debug is True:
+			print cmd
+	        subprocess.Popen(cmd,shell=True).wait()
 
 	else:
-                if debug is True:
-        	        print 'cp %s %s_%03d.spi' %(model,model[:-4],mod_count)
 
-                cmd = 'cp %s %s_%03d.spi' %(model,model[:-4],mod_count)
+                cmd = 'proc3d %s %s_%03d.mrc' %(model,model[:-4],mod_count)
+		if debug is True:
+			print cmd
                 subprocess.Popen(cmd,shell=True).wait()
-
-
-        cmd = 'proc3d %s_%03d.spi %s_%03d.mrc' %(model[:-4],mod_count,model[:-4],mod_count)
-        subprocess.Popen(cmd,shell=True).wait()
-
-        tot = file_len('refine_eman2/%s' %(paramout))
-
-        #Convert tilted particles to 3D-MRC format                
-
-        if debug is True:
-        	print '%s/imagic_to_freeHand2.py -f %s_%02d.img --total=%s --box=%s' %(cwd,tilt[:-4],mod_count,tot,box)
-
-        cmd = '%s/im_to_mrc.py -f %s_%02d.img ' %(cwd,tilt[:-4],mod_count)
-        subprocess.Popen(cmd,shell=True).wait()
 
 #==================
 def eman2_makeFH(f,c,mag):
