@@ -8,3 +8,14 @@ These scripts are written as modules for implementing the three stages of the fr
 
 3) Run free-hand test
 	-EXAMPLE:  freeHand_test.py
+
+lib/ - library of scripts used for these programs
+
+Software dependencies:
+	SPIDER
+	EMAN2
+	EMAN1
+	FFTW
+	gfortran
+	image2010
+	CCP4
