@@ -4,5 +4,7 @@ These scripts are written as modules for implementing the three stages of the fr
 	-EXAMPLE:  freeHand_eman2_ali.py
 
 2) Convert particles, alignment information, and CTF-information into free-hand friendly format
+	-EXAMPLE:  freeHand_converter.py
 
 3) Run free-hand test
+	-EXAMPLE:  freeHand_test.py
