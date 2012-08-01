@@ -106,11 +106,17 @@ def grep(string,list):
             return match.string
 
 #========================
-def eman2_sort(paramout,tilt,ctf,num_mod):
+def eman2_sort(paramout,tilt,ctf,num_mod,debug):
+
+	if debug is True:
+		print 'eman2_sort():'
+		print '		paramout = %s; tilt=%s; ctf=%s; num_mod=%s; debug=%s' %(paramout,tilt,ctf,num_mod,debug)
 
 	#Sort particles by model(s)	
-	if num_mod == 1:
-
+	if int(num_mod) == 1:
+	
+		if debug is True:
+			print 'num_mod == 1'
        		param=open(paramout,'r')
        		count=1
        		text='%s_%02d.txt' %(tilt[:-4],0)
@@ -138,12 +144,12 @@ def eman2_sort(paramout,tilt,ctf,num_mod):
 
       		text.close()
        		param.close()
-	        cmd="proc2d %s %s_%02d.img list=%s_%02d.txt" %(stack,new,0,new,0)
+	        cmd="proc2d %s %s_%02d.img list=%s_%02d.txt" %(tilt,tilt[:-4],0,tilt[:-4],0)
        		subprocess.Popen(cmd,shell=True).wait()
 
 	else:
 
-		for n in range(0,numMods):
+		for n in range(0,int(num_mod)):
 			param=open(paramout,'r')
 			c_o = '%s_model%02d.par' %(ctf[:-4],n)
                 	o1 = open(c_o,'w')
@@ -169,13 +175,13 @@ def eman2_sort(paramout,tilt,ctf,num_mod):
 				count=count+1
 			text.close()
 			param.close()
-			cmd="proc2d %s %s_%02d.img list=%s_%02d.txt " %(stack,new,n,new,n)
+			cmd="proc2d %s %s_%02d.img list=%s_%02d.txt " %(tilt,tilt[:-4],n,tilt[:-4],n)
 			subprocess.Popen(cmd,shell=True).wait()
 
-def eman2_angConv(paramout,num_mod,ctf,mag):
+def eman2_angConv(paramout,num_mod,ctf,mag,model,tilt,debug):
 	mod_count = 0
 	
-	while mod_count < num_mod:
+	while mod_count < int(num_mod):
 
 		print 'Working on model %s' %(mod_count)
 			
@@ -183,7 +189,9 @@ def eman2_angConv(paramout,num_mod,ctf,mag):
 		print 'Converting files into free-hand format'                
 		print '\n'                
 
-		parm='%s_model%02d' %(paramout)
+		parm='%s_model%02d' %(paramout,mod_count)
+		if debug is True:
+			print 'parm = %s' %(parm)
 
 		f=open(parm,'r')
 		out = open("%s_freeHand"%(parm),'w')
@@ -193,27 +201,28 @@ def eman2_angConv(paramout,num_mod,ctf,mag):
 		for line in f:
 					
 			l = line.split()
-		
+			if debug is True:
+				print l		
 			parmPSI = float(l[0])
 			parmTHETA = float(l[1])
 			parmPHI = float(l[2])
 			sx =(float(l[3]))
 			sy =(float(l[4]))
-			model = float(l[5])
+			model1 = float(l[5])
 			#Convert euler angles from EMAN2 to FREALIGN/SPIDER convention
 			psi,theta,phi = Eman2Freali(parmPSI,parmTHETA,parmPHI)	
-			out.write("%s 	%s	%s	%s	%s	%s\n"%(psi,theta,phi,sx,sy,model))
+			out.write("%s 	%s	%s	%s	%s	%s\n"%(psi,theta,phi,sx,sy,model1))
 		
 		f.close()
 		out.close()
 
-		#Convert parameter file format with CTF and angular info                
-		#cmd = '%s/make_freeHand_Param.py refine_eman2/%s_freeHand %s_model%02d.par %s' %(cwd,paramout,ctf[:-4],mod_count,mag)                
-		eman2_makeFH('%s_freeHand' %(paramout),'%s_model_%02d.par' %(ctf,mod_count),mag)
+		eman2_makeFH('%s_freeHand' %(parm),'%s_model%02d.par' %(ctf[:-4],int(mod_count)),mag,debug)
 
 		eman2_mods(num_mod,model,mod_count,debug)
 
 		eman2_parts('%s_%02d.img' %(tilt[:-4],mod_count),debug)
+
+		mod_count = mod_count + 1
 
 def eman2_parts(stack,debug):
 
@@ -240,8 +249,12 @@ def eman2_parts(stack,debug):
 def eman2_mods(num_mod,model,mod_count,debug):
 
         #Convert model from HDF to MRC                
-
-        if num_mod > 1:
+	if debug is True:
+		print num_mod
+		print model
+		print mod_count
+	
+        if int(num_mod) > 1:
 
                 cmd = 'e2proc3d.py --first=%s --last=%s %s %s_%03d.mrc' %(model,model[:-4],mod_count)
         	if debug is True:
@@ -250,24 +263,23 @@ def eman2_mods(num_mod,model,mod_count,debug):
 
 	else:
 
-                cmd = 'proc3d %s %s_%03d.mrc' %(model,model[:-4],mod_count)
+                cmd = 'proc3d %s %s_%03d.mrc' %(model,model[:-4],int(mod_count))
 		if debug is True:
 			print cmd
                 subprocess.Popen(cmd,shell=True).wait()
 
 #==================
-def eman2_makeFH(f,c,mag):
+def eman2_makeFH(f,c,mag,debug):
 
 	#Convert parameter file format with CTF info
 	f1 = open(f,'r')
 	fout = '%s_format' %(f)
 	o1 = open(fout,'a')
-
+	if debug is True:
+		print 'c = %s' %(c)
 	o1.write("C Frealign format parameter file created from Search_fspace parameter file\n")
 	o1.write("C\n")
 	o1.write("C           PSI   THETA     PHI     SHX     SHY    MAG   FILM      DF1      DF2  ANGAST  CCMax\n")
-
-	mag = float(sys.argv[3])
 
 	count = 1
 
@@ -288,7 +300,7 @@ def eman2_makeFH(f,c,mag):
 		df2 = float(ctf[1])
 		astig = float(ctf[2])
 
-		o1.write("%7d%8.3f%8.3f%8.3f%8.3f%8.3f%8.0f%6d%9.1f%9.1f%8.2f%7.2f\n" %(count,psi,theta,phi,shiftx,shifty,mag,1,df1,df2,astig,50))
+		o1.write("%7d%8.3f%8.3f%8.3f%8.3f%8.3f%8.0f%6d%9.1f%9.1f%8.2f%7.2f\n" %(count,psi,theta,phi,shiftx,shifty,float(mag),1,df1,df2,astig,50))
 
 		count = count + 1
 
@@ -297,7 +309,7 @@ def eman2_makeFH(f,c,mag):
 #========================
 def eman2(params):
 
-	param = params['params']
+	param = params['param']
 
 	#Get current working directory
 	script = sys.argv[0]
@@ -305,7 +317,7 @@ def eman2(params):
 
 	#Get parameter info: number of models
 	p = open(param,'r')
-	a = 'num_mods' 
+	a = 'num_mod' 
 	angl = grep(a,p)
 	aL = angl.split()
 	num_mod = aL[2]
@@ -317,16 +329,16 @@ def eman2(params):
         aL = angl.split()
         mag = aL[2]
 
-	tilt = params['tilt']
+	tilt = params['tilted']
 	ctf = params['ctf']
 	paramout = params['align']
 	debug = params['debug']
-	
+	model = params['model']
 	#Sort particles based up membership to model(s)
-	eman2sort(paramout,tilt,ctf,num_mod)
+	eman2_sort(paramout,tilt,ctf,num_mod,debug)
 	
 	#Convert euler angles, model, and particles from EMAN2 to FREALIGN for each model
-	eman2_angConv(paramout,num_mod,ctf,mag,model,tilt)
+	eman2_angConv(paramout,num_mod,ctf,mag,model,tilt,debug)
 
                
 if __name__ == "__main__":     
@@ -335,6 +347,6 @@ if __name__ == "__main__":
 	from sparx  import *     
 	params=setupParserOptions()     
 	checkConflicts(params)
-	
-	if params['prog'] is 'eman2':
+
+	if params['prog'] == 'eman2':
 		eman2(params)
