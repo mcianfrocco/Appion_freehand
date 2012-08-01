@@ -9,6 +9,7 @@ import subprocess
 from os import system
 import linecache
 
+#=========================
 def setupParserOptions():
         parser = optparse.OptionParser()
         parser.set_usage("%prog -u <untilted stack> -m <model> -p <parameter file>")
@@ -34,13 +35,33 @@ def setupParserOptions():
                         params[i.dest] = getattr(options,i.dest)
         return params
 
+#=========================
+def checkConflicts(params):
+	if not params['untilted']:
+		print "\nWarning: no stack specified\n"
+	elif not os.path.exists(params['untilted']):
+		print "\nError: stack file '%s' does not exist\n" % params['untilted']
+		sys.exit()
+        if not params['model']:
+                print "\nWarning: no model specified\n"
+        elif not os.path.exists(params['model']):
+                print "\nError: model file '%s' does not exist\n" % params['model']
+                sys.exit()
+	if not params['param']:
+		print "\nError: no free_param.par file specified"
+		sys.exit()
+	if not os.path.isfile(params['param']):
+		print "\nError: free_param.par file does not exist\n" 
+		sys.exit()
 
+#========================
 def file_len(fname):
     with open(fname) as f:
         for i, l in enumerate(f):
             pass
     return i + 1
 
+#========================
 def getEMANPath():        
         ### get the imagicroot directory        
         emanpath = subprocess.Popen("env | grep EMAN2DIR", shell=True, stdout=subprocess.PIPE).stdout.read().strip()        
@@ -52,6 +73,7 @@ def getEMANPath():
         print "EMAN2 was not found, make sure eman2/2.05 is in your path"        
         sys.exit()
 
+#========================
 def getOPENMPIPath():
         ### get the openmpi directory        
         openpath = subprocess.Popen("env | grep MPIHOME", shell=True, stdout=subprocess.PIPE).stdout.read().strip()
@@ -69,7 +91,7 @@ def getOPENMPIPath():
 	        print "OPENMPI is not loaded, make sure it is in your path"
         	sys.exit()
 
-
+#========================
 def grep(string,list):
     expr = re.compile(string)
     for text in list:
@@ -77,7 +99,8 @@ def grep(string,list):
         if match != None:
             return match.string
 
-def main2(params):
+#========================
+def align(params):
 	debug = params['debug']
 	param = params['param']
 	untilt = params['untilted']
@@ -274,6 +297,10 @@ def main2(params):
 	
 		cmd = '%s/run_freehand_sort.sh start.hdf %s %s %s %s %s %s %s %s' %(cwd,model,sx,ang,rad,snr,ts,cutoff,cwd)
 		subprocess.Popen(cmd,shell=True).wait()		
+	
+	#Clean up:
+	cmd = 'rm logfile* start.hdf %s_prep.*' %(untilt[:-4])
+	subprocess.Popen(cmd,shell=True).wait()
 
 if __name__ == "__main__":     
 	getEMANPath()             
@@ -281,5 +308,5 @@ if __name__ == "__main__":
 	from EMAN2 import *     
 	from sparx  import *     
 	params=setupParserOptions()     
-	main2(params)
-
+	checkConflicts(params)
+	align(params)
