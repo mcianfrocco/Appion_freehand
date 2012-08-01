@@ -1,0 +1,1 @@
+topologyAlignment.py --projectid=6 --rundir=/appion/michael/12jul19b/align/topol1 --description="test" --runname=topol1 --stack=564 --lowpass=10 --highpass=2000 --num-part=3840 --start=100 --end=62 --bin=1 --mask=48 --iter=5 --itermul=10 --learn=0.01 --ilearn=0.0005 --age=25 --mramethod=imagic --msamethod=can --nproc=8 --msaproc=8 --premask --expid=1815 --jobtype=partalign
