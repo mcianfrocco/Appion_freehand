@@ -334,12 +334,23 @@ def eman2(params):
 	paramout = params['align']
 	debug = params['debug']
 	model = params['model']
+	
 	#Sort particles based up membership to model(s)
 	eman2_sort(paramout,tilt,ctf,num_mod,debug)
 	
 	#Convert euler angles, model, and particles from EMAN2 to FREALIGN for each model
 	eman2_angConv(paramout,num_mod,ctf,mag,model,tilt,debug)
 
+	#Clean up
+	mod = 0
+	while mod < int(num_mod):
+		
+		cmd = 'rm %s_model%02d %s_model%02d_freeHand %s_model%02d.par %s_%02d.*' %(paramout,mod,paramout,mod,ctf[:-4],mod,tilt[:-4],mod)
+		if debug is True:
+			print cmd
+		subprocess.Popen(cmd,shell=True).wait()
+		
+		mod = mod + 1
                
 if __name__ == "__main__":     
 	getEMANPath()             
