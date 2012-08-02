@@ -345,7 +345,7 @@ def eman2(params):
 	mod = 0
 	while mod < int(num_mod):
 		
-		cmd = 'rm %s_model%02d %s_model%02d_freeHand %s_model%02d.par %s_%02d.*' %(paramout,mod,paramout,mod,ctf[:-4],mod,tilt[:-4],mod)
+		cmd = 'rm %s_model%02d %s_model%02d_freeHand %s_model%02d.par %s_%02d.img %s_%02d.hed %s_%02d.txt' %(paramout,mod,paramout,mod,ctf[:-4],mod,tilt[:-4],mod,tilt[:-4],mod,tilt[:-4],mod)
 		if debug is True:
 			print cmd
 		subprocess.Popen(cmd,shell=True).wait()

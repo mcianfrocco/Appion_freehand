@@ -285,17 +285,18 @@ def align(params):
 	print '\n'                
 
 	if num_mod == 1:
+
+		cmd = 'mpirun -np 8 %s/refine.py start.hdf %s refine_eman2 --ou=%s --rs=1 --xr=%s --ts=%s --delta=%s --snr=%s --center=0 --maxit=1 --ref_a=S --sym=c1 --cutoff=%s --MPI --full_output' %(cwd,model,rad,sx,ts,ang,snr,cutoff)
 		
 		if debug is True:
-			print '%s/run_freehand.sh start.hdf %s %s %s %s %s %s %s %s' %(cwd,model,str(sx),str(ang),str(rad),str(snr),str(ts),str(cutoff),cwd)
-
-		cmd = '%s/run_freehand.sh start.hdf %s %s %s %s %s %s %s %s' %(cwd,model,str(sx),str(ang),str(rad),str(snr),str(ts),str(cutoff),cwd)
+			print cmd
                	subprocess.Popen(cmd,shell=True).wait()
 	else:
-		if debug is True:
-			print '%s/run_freehand_sort.sh start.hdf %s %s %s %s %s %s %s %s' %(cwd,model,sx,ang,rad,snr,ts,cutoff,cwd)
 	
-		cmd = '%s/run_freehand_sort.sh start.hdf %s %s %s %s %s %s %s %s' %(cwd,model,sx,ang,rad,snr,ts,cutoff,cwd)
+		cmd = 'mpirun -np 8 %s/refine.py start.hdf %s refine_eman2 --ou=%s --rs=1 --xr=%s --ts=%s --delta=%s --snr=%s --center=0 --maxit=1 --ref_a=S --sym=c1 --cutoff=%s --MPI --full_output --sort' %(cwd,model,rad,sx,ts,ang,snr,cutoff)
+
+                if debug is True:
+                        print cmd
 		subprocess.Popen(cmd,shell=True).wait()		
 	
 	#Clean up:
