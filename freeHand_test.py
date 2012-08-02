@@ -8,6 +8,7 @@ import glob
 import subprocess
 from os import system
 import linecache
+import time
 
 def setupParserOptions():
         parser = optparse.OptionParser()
@@ -43,6 +44,17 @@ def file_len(fname):
             pass
     return i + 1
 
+def getCCP4Path():        
+        ### get the openmpi directory        
+        ccp4path = subprocess.Popen("env | grep CCP4_PATH", shell=True, stdout=subprocess.PIPE).stdout.read().strip()        
+
+        if ccp4path:                
+                ccp4path = ccp4path.replace("CCP4_PATH=","")      
+        if os.path.exists(ccp4path):                        
+                return ccp4path        
+        print "ccp4 is not loaded, make sure it is in your path"        
+        sys.exit()
+
 def getEMANPath():        
         ### get the imagicroot directory        
         emanpath = subprocess.Popen("env | grep EMAN2DIR", shell=True, stdout=subprocess.PIPE).stdout.read().strip()        
@@ -60,6 +72,64 @@ def grep(string,list):
         match = expr.search(text)
         if match != None:
             return match.string
+
+def peak(stack,tot,cent):
+	spifile = "currentSpiderScript.spi"
+       	if os.path.isfile(spifile):
+        	os.remove(spifile)
+       	spi=open(spifile,'w')
+	spicmd="SD IC NEW\n"
+	spicmd+="incore\n"
+	spicmd+="2,%s\n" %(tot)
+	spicmd+="do lb1 [part] = 1, %s\n" %(tot)
+	spicmd+="\n"
+	spicmd+="PK [x] [y]\n"
+	spicmd+="%s@{******[part]}\n"%(stack[:-4])
+	spicmd+="(1,0)\n"
+	spicmd+="[newX] = %s +[x]\n" %(cent)
+	spicmd+="[newY] = %s +[y]\n" %(cent)
+	spicmd+="SD IC [part] [newX] [newY]\n"
+	spicmd+="incore\n"
+	spicmd+="lb1\n"
+	spicmd+="SD IC COPY\n"
+	spicmd+="incore\n"
+	spicmd+="%s_peak\n" %(stack[:-4])
+	spicmd+="SD ICE\n"
+	spicmd+="incore\n"
+	spicmd+="en d\n"
+	runSpider(spicmd)
+
+def runSpider(lines):
+       spifile = "currentSpiderScript.spi"
+       if os.path.isfile(spifile):
+               os.remove(spifile)
+       spi=open(spifile,'w')
+       spi.write("MD\n")
+       spi.write("TR OFF\n")
+       spi.write("MD\n")
+       spi.write("VB OFF\n")
+       spi.write("MD\n")
+       spi.write("SET MP\n")
+       spi.write("(0)\n")
+       spi.write("\n")
+       spi.write(lines)
+
+       spi.write("\nEN D\n")
+       spi.close()
+       spicmd = "spider spi @currentSpiderScript"
+       spiout = subprocess.Popen(spicmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).stderr.read()
+       output = spiout.strip().split()
+       if "ERROR" in output:
+               print "Spider Error, check 'currentSpiderScript.spi'\n"
+               sys.exit()
+       # clean up
+       os.remove(spifile)
+       if os.path.isfile("LOG.spi"):
+               os.remove("LOG.spi")
+       resultf = glob.glob("results.spi.*")
+       if resultf:
+               for f in resultf:
+                       os.remove(f)
 
 def fastFree(params):
 	debug = params['debug']
@@ -286,16 +356,16 @@ def wait(params):
 		if test is True:
 			i = i + 1
 	
-	print 'Free-hand test completed for all particles'
+	if debug is True:
+		print 'Free-hand test completed for all particles'
 
 	#Clean up:
-	cmd = 'rm iteration?_finished tmp*'
+	cmd = 'rm iteration?_finished tmp* fastfreehand_v1_01.exe'
 	subprocess.Popen(cmd,shell=True)
 
-def plot(params):
+def plotFH(params,ccp4_path):
 	
 	param = params['param']
-	out = params['out']
 	debug = params['debug']
 	model = params['model']
         #Free hand angular search
@@ -311,143 +381,166 @@ def plot(params):
         fs3 = fs2.split()
         calc = fs3[2]
 
-        #Free hand angular search
-        p9 = open(param,'r')
-        fs1 = 'num_mod'
-        fs2 = grep(fs1,p9)
-        fs3 = fs2.split()
-        mods = float(fs3[2])
-
 	#Merge stacks:
 	m = 0
 
 	script = sys.argv[0]
-	cwd = '%s/lib' %(script[:-22])
+	cwd = '%s/lib' %(script[:-17])
 	
-	while m < mods:
+	num = len(glob.glob('model00_plots*.mrc'))
 
-		num = len(glob.glob('model%02d_plots*.mrc'%(m)))
+	i = 1
+	while i <= int(num):
 
-		i = 1
-		while i <= int(num):
-
-			cmd = '%s/mrc_to_im.b model%02d_plots_CC_v101_%s.mrc' %(cwd,m,i)
-			if debug is True:
-				print cmd
-			subprocess.Popen(cmd,shell=True).wait()
-
-			cmd = 'proc2d model%02d_plots_CC_v101_%s.img model%02d_plots_CC_v101_merge.img' %(m,i,m)
-			if debug is True:
-				print cmd
-			subprocess.Popen(cmd,shell=True).wait()
-
-			i = i + 1
-
-		cmd = '%s/im_to_mrc.b model%02d_plots_CC_v101_merge.img' %(cwd,m)
+		cmd = 'e2proc2d.py model00_plots_CC_v101_%02d.mrc model00_plots_CC_v101_%02d.img --threed2twod' %(i,i)
+		if debug is True:
+			print cmd
 		subprocess.Popen(cmd,shell=True).wait()
 
-	        cmd = 'cp %s/totsumstack.exe .' %(cwd)
-	        subprocess.Popen(cmd,shell=True).wait()
-
-		cmd = 'cp %s/totsumstack_mult.csh .' %(cwd)
-                subprocess.Popen(cmd,shell=True).wait()
+		cmd = 'rm model00_plots_CC_v101_%02d.mrc' %(i)
+		#subprocess.Popen(cmd,shell=True).wait()
 	
-	        cmd = './totsumstack_mult.csh model%02d' %(m) 
-	        subprocess.Popen(cmd,shell=True).wait()
-
-	        cmd = 'rm totsumstack.exe totsumstack_mult.csh'
-	        subprocess.Popen(cmd,shell=True).wait()
-	
-		if calc is 'C':
-
-			line1 = (float(angSearch)*2)/5
-			line = line1/2
-			if debug is True:
-				print '%s = float(%s*2)/5' %(line1,angSearch)
-				print '%s = %s / 2' %(line,line1)
-				print '%s/npo_CC_wrap_mult.csh %s model%02d %s' %(cwd,str(float(angSearch)*2),m,line)
-
-		        cmd = '%s/npo_CC_wrap_mult.csh %s model%02d %s' %(cwd,str(float(angSearch)*2),m,line)
-		        subprocess.Popen(cmd,shell=True).wait()
-
-			cmd = '%s/mrc_to_spi.b model%02d_plots_CC_v101_merge.mrc' %(cwd,m)
-			subprocess.Popen(cmd,shell=True).wait()
-	
-			cmd = 'mkdir %s' %(out)
-		       	subprocess.Popen(cmd,shell=True).wait()
-	
-			cmd = 'mv model%02d_plots_CC_v101* %s/' %(m,out)
-		        subprocess.Popen(cmd,shell=True).wait()
-
-			cmd = 'mv model%02d_frehand_CC.ps %s/' %(m,out)
-		        subprocess.Popen(cmd,shell=True).wait()
-
-	       		cmd = 'mv model%02d_averageplot_CC_v101.mrc %s/' %(m,out)
-		        subprocess.Popen(cmd,shell=True).wait()
-
-			cmd = 'cp %s %s/' %(model,out)
-			subprocess.Popen(cmd,shell=True).wait()
-	
-		        cmd = 'cp %s %s/' %(param,out)
-		        subprocess.Popen(cmd,shell=True).wait()
-	
-			tot = EMUtil.get_image_count('%s/model%02d_plots_CC_v101_merge.img' %(out,m)) 	
-			n = int(angSearch)+1
-			stack = '%s/model%02d_plots_CC_v101_merge.spi' %(out,m)
-			peak(stack,tot,n)
-			m = m + 1
-
-                if calc is 'P':
-
-                        line1 = (float(angSearch)*2)/5
-                        line = line1/2
-                        if debug is True:
-                                print '%s = float(%s*2)/5' %(line1,angSearch)
-                                print '%s = %s / 2' %(line,line1)
-                                print '%s/npo_CC_wrap_mult_phase.csh %s model%02d %s' %(cwd,str(float(angSearch)*2),m,line)
-
-                        cmd = '%s/npo_CC_wrap_mult_phase.csh %s model%02d %s' %(cwd,str(float(angSearch)*2),m,line)
-                        subprocess.Popen(cmd,shell=True).wait()
-
-                        cmd = '%s/mrc_to_spi.b model%02d_plots_CC_v101_merge.mrc' %(cwd,m)
-                        subprocess.Popen(cmd,shell=True).wait()
-
-			cmd = 'mkdir %s' %(out)
-                       	subprocess.Popen(cmd,shell=True).wait()
-
-                        cmd = 'mv model%02d_plots_CC_v101* %s/' %(m,out)
-                        subprocess.Popen(cmd,shell=True).wait()
-
-                        cmd = 'mv model%02d_frehand_CC.ps %s/' %(m,out)
-                        subprocess.Popen(cmd,shell=True).wait()
-
-                        cmd = 'mv model%02d_averageplot_CC_v101.mrc %s/' %(m,out)
-                        subprocess.Popen(cmd,shell=True).wait()
-
-                        cmd = 'cp %s %s/' %(model,out)
-                        subprocess.Popen(cmd,shell=True).wait()
-
-                        cmd = 'cp %s %s/' %(param,out)
-                        subprocess.Popen(cmd,shell=True).wait()
-
-                        tot = EMUtil.get_image_count('%s/model%02d_plots_CC_v101_merge.img' %(out,m))
-                        n = int(angSearch)+1
-                        stack = '%s/model%02d_plots_CC_v101_merge.spi' %(out,m)
-                        peak(stack,tot,n)
-                        m = m + 1
-
-		cmd = 'mv *00.* %s' %(out)	
+		cmd = 'proc2d model00_plots_CC_v101_%02d.img model00_plots_CC_v101_merge.img' %(i)
+		if debug is True:
+			print cmd
 		subprocess.Popen(cmd,shell=True).wait()
 
-	cmd = 'rm -r logfile* test.img test.hed model??*.mrc refine_eman2 z.plot start.hdf *_prep.img *_prep.hed '
- 	subprocess.Popen(cmd,shell=True).wait()
+		i = i + 1
 
-	cmd = "cp %s/find_peaks_freeHand.spi %s" %(cwd,out)
+	cmd = 'e2proc2d.py model00_plots_CC_v101_merge.img model00_plots_CC_v101_merge.mrc --twod2threed'
+	if debug is True:
+		print cmd
 	subprocess.Popen(cmd,shell=True).wait()
+	
+        cmd = 'cp %s/totsumstack.exe .' %(cwd)
+        if debug is True:
+                print cmd
+	subprocess.Popen(cmd,shell=True).wait()
+
+	totsum = '#!/bin/csh\n'
+	totsum += 'totsumstack.exe << eot\n'
+	totsum += 'model00_plots_CC_v101_merge.mrc\n' 
+	totsum += 'model00_averageplot_CC_v101.mrc\n'
+	totsum += 'eot\n'
+
+        tmp = open('tmp.csh','w')
+        tmp.write(totsum)
+        tmp.close()
+
+	if debug is True:
+                print totsum
+
+        cmd = 'chmod +x tmp.csh' 
+        if debug is True:
+                print cmd
+	subprocess.Popen(cmd,shell=True)
+
+        cmd = './tmp.csh' 
+        subprocess.Popen(cmd,shell=True).wait()
+
+        cmd = 'rm totsumstack.exe tmp.csh '
+        subprocess.Popen(cmd,shell=True).wait()
+	
+	if calc is 'C':
+
+		line1 = (float(angSearch)*2)/5
+		line = line1/2
+		if debug is True:
+			print '%s = float(%s*2)/5' %(line1,angSearch)
+			print '%s = %s / 2' %(line,line1)
+			print '%s/npo_CC_wrap_mult.csh %s model%02d %s' %(cwd,str(float(angSearch)*2),m,line)
+
+		npo = '#!/bin/csh\n'
+		npo += 'rm -f z.plot\n'
+		npo += 'rm -f plot84.ps\n'
+		npo += '%s/bin/npo mapin model00_averageplot_CC_v101.mrc plot z.plot << eof\n' %(ccp4_path)
+		npo += 'NOTITLE\n'
+		npo += 'MAP SCALE 1 INVERT\n'
+		npo += '# For CCC\n'
+		npo += 'CONTRS 0.0 to 1 by 0.002\n'
+		npo += 'LIMITS 0 %s 0 %s 0 0\n' %(str(float(angSearch)*2),str(float(angSearch)*2))
+		npo += 'SECTNS 0 0 1\n'
+		npo += 'GRID  5 5\n'
+		npo += 'GRID U DASHED 1.0 0.2 0 EVERY %s FULL\n' %(line)
+		npo += 'GRID V DASHED 1.0 0.2 0 EVERY %s FULL\n' %(line)
+		npo += 'PLOT Y\n'
+		npo += 'eof\n'
+		npo += '%s/bin/pltdev -log -dev ps -abs -pen c -xp 3.1 -yp 3.1 -lan -i z.plot -o model00_average_frehand_CC.ps' %(ccp4_path)
+
+	        tmp = open('tmp.csh','w')
+        	tmp.write(npo)
+	        tmp.close()
+
+        	cmd = 'chmod +x tmp.csh'
+	        subprocess.Popen(cmd,shell=True)
+
+	        cmd = './tmp.csh'
+	        subprocess.Popen(cmd,shell=True).wait()
+
+        	cmd = 'rm tmp.csh '
+	        subprocess.Popen(cmd,shell=True).wait()
+
+		cmd = 'e2proc2d.py model00_plots_CC_v101_merge.img model00_plots_CC_v101_merge.spi' 
+		subprocess.Popen(cmd,shell=True).wait()
+	
+		tot = EMUtil.get_image_count('model00_plots_CC_v101_merge.img') 	
+		n = int(angSearch)+1
+		stack = 'model00_plots_CC_v101_merge.spi' 
+		peak(stack,tot,n)
+	
+	if calc is 'P':
+
+                line1 = (float(angSearch)*2)/5
+                line = line1/2
+                if debug is True:
+                        print '%s = float(%s*2)/5' %(line1,angSearch)
+                        print '%s = %s / 2' %(line,line1)
+                        print '%s/npo_CC_wrap_mult.csh %s model%02d %s' %(cwd,str(float(angSearch)*2),m,line)
+
+                npo = '#!/bin/csh\n'
+                npo += 'rm -f z.plot\n'
+                npo += 'rm -f plot84.ps\n'
+                npo += '%s/bin/npo mapin model00_averageplot_CC_v101.mrc plot z.plot << eof\n' %(ccp4_path)
+                npo += 'NOTITLE\n'
+                npo += 'MAP SCALE 1 INVERT\n'
+                npo += '# For Pres\n'
+                npo += 'CONTRS 77. to 86. by .3\n'
+                npo += 'LIMITS 0 %s 0 %s 0 0\n' %(str(float(angSearch)*2),str(float(angSearch)*2))
+                npo += 'SECTNS 0 0 1\n'
+                npo += 'GRID  5 5\n'
+                npo += 'GRID U DASHED 1.0 0.2 0 EVERY %s FULL\n' %(line)
+                npo += 'GRID V DASHED 1.0 0.2 0 EVERY %s FULL\n' %(line)
+                npo += 'PLOT Y\n'
+                npo += 'eof\n'
+		npo += '%s/bin/pltdev -log -dev ps -abs -pen c -xp 3.1 -yp 3.1 -lan -i z.plot -o model00_average_frehand_CC.ps' %(ccp4_path)
+
+                tmp = open('tmp.csh','w')
+                tmp.write(npo)
+                tmp.close()
+
+                cmd = 'chmod +x tmp.csh'
+                subprocess.Popen(cmd,shell=True)
+
+                cmd = './tmp.csh'
+                subprocess.Popen(cmd,shell=True).wait()
+
+                cmd = 'rm tmp.csh '
+                subprocess.Popen(cmd,shell=True).wait()
+
+                cmd = 'e2proc2d.py model00_plots_CC_v101_merge.img model00_plots_CC_v101_merge.spi'
+                subprocess.Popen(cmd,shell=True).wait()
+
+                tot = EMUtil.get_image_count('model00_plots_CC_v101_merge.img')  
+                n = int(angSearch)+1
+                stack = 'model00_plots_CC_v101_merge.spi' 
+                peak(stack,tot,n)
 
 if __name__ == "__main__":     
 	getEMANPath()             
+	ccp4 = getCCP4Path()
 	from EMAN2 import *     
 	from sparx  import *     
 	params=setupParserOptions()     
 	fastFree(params)
+	wait(params)
+	plotFH(params,ccp4)

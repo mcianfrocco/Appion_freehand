@@ -16,7 +16,7 @@ def setupParserOptions():
         parser.add_option("-t",dest="tilted",type="string",metavar="FILE",
                 help="tilted stack (black, raw particles in IMAGIC format)")
         parser.add_option("-m",dest="model",type="string",metavar="FILE",
-                help="3D model for alignment (Single MRC volume)")
+                help="3D model for used in alignment (Single SPIDER volume or multi-volume HDF)")
         parser.add_option("-p",dest="param",type="string", metavar="FILE",
                 help="Parameter file with refinement info (free_param.par)")
         parser.add_option("-c",dest="ctf",type="string", metavar="FILE",
@@ -237,7 +237,7 @@ def eman2_parts(stack,debug):
         img = EMData(nx,nx,nimg)
         img.write_image(stack[:-4]+'.mrc')
 
-	i = 1
+	i = 0
 
         while i < nimg:
                 d = EMData()
