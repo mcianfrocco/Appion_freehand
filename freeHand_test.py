@@ -337,6 +337,7 @@ def fastFree(params):
 def wait(params):
 
 	param = params['param']
+	debug = params['debug']
 
         #Free hand increment  
         p13 = open(param,'r')
@@ -398,7 +399,7 @@ def plotFH(params,ccp4_path):
 		subprocess.Popen(cmd,shell=True).wait()
 
 		cmd = 'rm model00_plots_CC_v101_%02d.mrc' %(i)
-		#subprocess.Popen(cmd,shell=True).wait()
+		subprocess.Popen(cmd,shell=True).wait()
 	
 		cmd = 'proc2d model00_plots_CC_v101_%02d.img model00_plots_CC_v101_merge.img' %(i)
 		if debug is True:
@@ -465,7 +466,8 @@ def plotFH(params,ccp4_path):
 		npo += 'GRID V DASHED 1.0 0.2 0 EVERY %s FULL\n' %(line)
 		npo += 'PLOT Y\n'
 		npo += 'eof\n'
-		npo += '%s/bin/pltdev -log -dev ps -abs -pen c -xp 3.1 -yp 3.1 -lan -i z.plot -o model00_average_frehand_CC.ps' %(ccp4_path)
+		npo += '\n'
+		npo += '%s/bin/pltdev -log -dev ps -abs -pen c -xp 3.1 -yp 3.1 -lan -i z.plot -o model00_average_frehand_CC.ps\n' %(ccp4_path)
 
 	        tmp = open('tmp.csh','w')
         	tmp.write(npo)
@@ -477,7 +479,7 @@ def plotFH(params,ccp4_path):
 	        cmd = './tmp.csh'
 	        subprocess.Popen(cmd,shell=True).wait()
 
-        	cmd = 'rm tmp.csh '
+        	cmd = 'rm tmp.csh z.plot'
 	        subprocess.Popen(cmd,shell=True).wait()
 
 		cmd = 'e2proc2d.py model00_plots_CC_v101_merge.img model00_plots_CC_v101_merge.spi' 
@@ -487,6 +489,9 @@ def plotFH(params,ccp4_path):
 		n = int(angSearch)+1
 		stack = 'model00_plots_CC_v101_merge.spi' 
 		peak(stack,tot,n)
+
+		cmd = 'rm model00_plots_CC_v101_merge.img model00_plots_CC_v101_merge.hed model00_plots_CC_v101_merge.spi'
+		subprocess.Popen(cmd,shell=True).wait()
 	
 	if calc is 'P':
 
@@ -512,7 +517,8 @@ def plotFH(params,ccp4_path):
                 npo += 'GRID V DASHED 1.0 0.2 0 EVERY %s FULL\n' %(line)
                 npo += 'PLOT Y\n'
                 npo += 'eof\n'
-		npo += '%s/bin/pltdev -log -dev ps -abs -pen c -xp 3.1 -yp 3.1 -lan -i z.plot -o model00_average_frehand_CC.ps' %(ccp4_path)
+		npo += '\n'
+		npo += '%s/bin/pltdev -log -dev ps -abs -pen c -xp 3.1 -yp 3.1 -lan -i z.plot -o model00_average_frehand_CC.ps\nn' %(ccp4_path)
 
                 tmp = open('tmp.csh','w')
                 tmp.write(npo)
@@ -524,7 +530,7 @@ def plotFH(params,ccp4_path):
                 cmd = './tmp.csh'
                 subprocess.Popen(cmd,shell=True).wait()
 
-                cmd = 'rm tmp.csh '
+                cmd = 'rm tmp.csh z.plot'
                 subprocess.Popen(cmd,shell=True).wait()
 
                 cmd = 'e2proc2d.py model00_plots_CC_v101_merge.img model00_plots_CC_v101_merge.spi'
@@ -534,6 +540,9 @@ def plotFH(params,ccp4_path):
                 n = int(angSearch)+1
                 stack = 'model00_plots_CC_v101_merge.spi' 
                 peak(stack,tot,n)
+
+		cmd = 'rm model00_plots_CC_v101_merge.img model00_plots_CC_v101_merge.hed model00_plots_CC_v101_merge.spi model00_plots_CC_v101_merge.mrc model00_plots*.img model00_plots*.hed'
+                subprocess.Popen(cmd,shell=True).wait()
 
 if __name__ == "__main__":     
 	getEMANPath()             
