@@ -227,11 +227,11 @@ def eman2_angConv(paramout,num_mod,ctf,mag,model,tilt,debug):
 
 		eman2_mods(num_mod,model,mod_count,debug)
 
-		eman2_parts('%s_%02d.img' %(tilt[:-4],mod_count),debug)
+		im_to_mrc('%s_%02d.img' %(tilt[:-4],mod_count),debug)
 
 		mod_count = mod_count + 1
 
-def eman2_parts(stack,debug):
+def im_to_mrc(stack,debug):
 
         #Convert tilted particles to 3D-MRC format                
 
@@ -393,6 +393,7 @@ def frealign(params):
 	f = params['align'] 
 	
 	makeFH(f,ctf,mag,pix,debug)
+	im_to_mrc(tilt,debug)
 
 if __name__ == "__main__":     
 	getEMANPath()             
