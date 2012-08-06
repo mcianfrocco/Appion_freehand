@@ -24,7 +24,7 @@ def setupParserOptions():
         parser.add_option("-o",dest="align",type="string", metavar="FILE",
                 help="File with alignment info")
         parser.add_option("--prog",dest="prog",type="string", metavar="FILE",
-                help="Program for 3D alignment: eman2, frealign")
+                help="Program for 3D alignment: eman2, frealign, xmipp")
         parser.add_option("-d", action="store_true",dest="debug",default=False,
                 help="debug")
         options,args = parser.parse_args()
@@ -317,6 +317,51 @@ def makeFH(f,c,mag,div,debug):
 
 	o1.write("C\n")
 
+def makeFH_xmipp(f,c,mag,div,debug):
+
+        #Convert parameter file format with CTF info
+        f1 = open(f,'r')
+        fout = '%s_format.par' %(f[:-4])
+        o1 = open(fout,'a')
+        if debug is True:
+                print 'c = %s' %(c)
+        o1.write("C Frealign format parameter file created from Search_fspace parameter file\n")
+        o1.write("C\n")
+        o1.write("C           PSI   THETA     PHI     SHX     SHY    MAG   FILM      DF1      DF2  ANGAST  CCMax\n")
+
+        count = 1
+
+        for line in f1:
+
+                l = line.split()
+
+                if l[0] is ';':
+                        continue
+                if debug is True:
+                        print line
+                #Conversion taken from frealign forum
+                psi = -float(l[4])
+                theta = -float(l[3]) + 180
+                phi = float(l[2]) + 180
+
+		if psi < 0:
+			psi = psi + 360
+
+                shiftx = -float(l[5])/float(div)
+                shifty = float(l[6])/float(div)
+
+                ctf2 = linecache.getline(c,count)
+                ctf = ctf2.split()
+                df1 = float(ctf[0])
+                df2 = float(ctf[1])
+                astig = float(ctf[2])
+
+                o1.write("%7d%8.3f%8.3f%8.3f%8.3f%8.3f%8.0f%6d%9.1f%9.1f%8.2f%7.2f\n" %(count,psi,theta,phi,shiftx,shifty,float(mag),1,df1,df2,astig,50))
+
+                count = count + 1
+
+        o1.write("C\n")
+
 #========================
 def eman2(params):
 
@@ -395,6 +440,46 @@ def frealign(params):
 	makeFH(f,ctf,mag,pix,debug)
 	im_to_mrc(tilt,debug)
 
+def xmipp(params):
+
+	param = params['param']
+
+        #Get current working directory
+        script = sys.argv[0]
+        cwd = '%s/lib' %(script[:-22])
+
+        #Get parameter info: mag
+        p = open(param,'r')
+        a = 'mag'
+        angl = grep(a,p)
+        aL = angl.split()
+        mag = aL[2]
+
+       #Get parameter info: pixel size
+        p = open(param,'r')
+        a = 'pix'
+        angl = grep(a,p)
+        aL = angl.split()
+        pix = aL[2]
+
+        tilt = params['tilted']
+        ctf = params['ctf']
+        paramout = params['align']
+        debug = params['debug']
+        model = params['model']
+        f = params['align']
+
+	makeFH_xmipp(f,ctf,mag,pix,debug)
+	im_to_mrc(tilt,debug)
+
+	#Convert model to .mrc format
+	cmd = 'proc3d %s %s.mrc' %(model,model[:-4],)
+	if debug is True:
+        	print "Converting model:\n"
+		print cmd
+        subprocess.Popen(cmd,shell=True).wait()
+	
+
 if __name__ == "__main__":     
 	getEMANPath()             
 	from EMAN2 import *     
@@ -408,5 +493,8 @@ if __name__ == "__main__":
 	if params['prog'] == 'frealign':
 		frealign(params)
 
-	if params['prog'] != 'eman2' and params['prog'] != 'frealign':
+	if params['prog'] == 'xmipp':
+                xmipp(params)
+
+	if params['prog'] != 'eman2' and params['prog'] != 'frealign' and params['prog'] != 'xmipp':
 		print 'prog=%s unknown option specified' %(params['prog'])
