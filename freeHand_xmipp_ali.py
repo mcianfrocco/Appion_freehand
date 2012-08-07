@@ -53,6 +53,15 @@ def checkConflicts(params):
 	if not os.path.isfile(params['param']):
 		print "\nError: free_param.par file does not exist\n" 
 		sys.exit()
+	if os.path.exists('data'):
+		print "\ndata/ folder already exists, please remove and restart\n"
+		sys.exit()
+	if os.path.isfile('data.sel'):
+		print "\ndata.sel already exists, please remove and restart\n"
+                sys.exit()
+	if os.path.isfile('xmipp_alignment_info.doc'):
+                print "\nxmipp_alignment_info.doc  already exists, please remove and restart\n"
+                sys.exit()
 
 #========================
 def file_len(fname):
@@ -77,6 +86,49 @@ def grep(string,list):
         match = expr.search(text)
         if match != None:
             return match.string
+
+def im_to_xmipp(stack,tot):
+
+	spicmd = 'VM\n'
+	spicmd += 'mkdir data\n'
+	spicmd += 'do lb1 [part]=1,%s\n' %(tot)
+	spicmd += '	CP\n'
+	spicmd += '	%s@{******[part]}\n' %(stack)
+	spicmd += '	data/data{******[part]}\n'
+	spicmd += 'lb1\n'
+	runSpider(spicmd)
+
+def runSpider(lines):
+       spifile = "currentSpiderScript.spi"
+       if os.path.isfile(spifile):
+               os.remove(spifile)
+       spi=open(spifile,'w')
+       spi.write("MD\n")
+       spi.write("TR OFF\n")
+       spi.write("MD\n")
+       spi.write("VB OFF\n")
+       spi.write("MD\n")
+       spi.write("SET MP\n")
+       spi.write("(0)\n")
+       spi.write("\n")
+       spi.write(lines)
+
+       spi.write("\nEN D\n")
+       spi.close()
+       spicmd = "spider spi @currentSpiderScript"
+       spiout = subprocess.Popen(spicmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).stderr.read()
+       output = spiout.strip().split()
+       if "ERROR" in output:
+               print "Spider Error, check 'currentSpiderScript.spi'\n"
+               sys.exit()
+       # clean up
+       os.remove(spifile)
+       if os.path.isfile("LOG.spi"):
+               os.remove("LOG.spi")
+       resultf = glob.glob("results.spi.*")
+       if resultf:
+               for f in resultf:
+                       os.remove(f)
 
 #========================
 def align(params):
@@ -237,7 +289,7 @@ def align(params):
 		
 	#Prepare stack for EMAN2 refinement 
         print '\n'
-        print 'Converting stack into EMAN2 format'
+        print 'Converting stack into XMIPP format'
         print '\n'
 
 	#Filter particles to specified resolution limits
@@ -245,54 +297,68 @@ def align(params):
 	cmd = 'proc2d %s %s_prep.img apix=%s hp=%s lp=%s' %(untilt,untilt[:-4],pix,min_res,max_res)
         subprocess.Popen(cmd,shell=True).wait()
 
-	if debug is True:
-		print '%s/up_head.py %s_prep.img %s' %(cwd,untilt[:-4],pix)
+	cmd = 'proc2d %s_prep.img %s_prep.spi spider' %(untilt[:-4],untilt[:-4])
+	subprocess.Popen(cmd,shell=True).wait()
 
-       	cmd = '%s/up_head.py %s_prep.img %s' %(cwd,untilt[:-4],pix)
-        subprocess.Popen(cmd,shell=True).wait()
+        cmd = 'rm %s_prep.img %s_prep.hed' %(untilt[:-4],untilt[:-4])
+	subprocess.Popen(cmd,shell=True).wait()
+	
+	im_to_xmipp('%s_prep' %(untilt[:-4]),tot)
+	
+	#Create select file
+	cmd = 'xmipp_selfile_create "data/*.spi" > data.sel'
+	subprocess.Popen(cmd,shell=True).wait()
 
-        #Run refinement
+	#Run refinement
         print '\n'                
-	print 'Running EMAN2 refinement'                
+	print 'Running XMIPP refinement'                
 	print '         Angular step = %s' %(ang)                
 	print '         Shift range = %s' %(sx)                
 	print '         Shift step size (ts)  = %s' %(ts)                
 	print '         Pixel Size = %s' %(pix)                
 	print '         Radius = %s' %(rad)                
 	print '         SNR = %s' %(snr)
-	print '	        CC_cut = %s' %(cutoff)                
 	print '\n'                
 
-	if num_mod == 1:
-
-		cmd = 'mpirun -np 8 %s/refine.py start.hdf %s refine_eman2 --ou=%s --rs=1 --xr=%s --ts=%s --delta=%s --snr=%s --center=0 --maxit=1 --ref_a=S --sym=c1 --cutoff=%s --MPI --full_output' %(cwd,model,rad,sx,ts,ang,snr,cutoff)
-		
-		if debug is True:
-			print cmd
-               	subprocess.Popen(cmd,shell=True).wait()
-	else:
-	
-		cmd = 'mpirun -np 8 %s/refine.py start.hdf %s refine_eman2 --ou=%s --rs=1 --xr=%s --ts=%s --delta=%s --snr=%s --center=0 --maxit=1 --ref_a=S --sym=c1 --cutoff=%s --MPI --full_output --sort' %(cwd,model,rad,sx,ts,ang,snr,cutoff)
-
-                if debug is True:
-                        print cmd
-		subprocess.Popen(cmd,shell=True).wait()		
-	
-	#Clean up:
-	cmd = 'rm logfile* start.hdf %s_prep.*' %(untilt[:-4])
+	cmd = 'xmipp_header_extract -i data.sel -o original_angles.doc'
 	subprocess.Popen(cmd,shell=True).wait()
 
-cmd = 'xmipp_header_extract  -i /home/michael/XMIPP_to_FreeHand/xmipp/ProjMatch2/run1/data.sel -o /home/michael/XMIPP_to_FreeHand/xmipp/ProjMatch2/run1/original_angles.doc'
+	cmd = 'mkdir ReferenceLibrary ProjMatchClasses'
+	subprocess.Popen(cmd,shell=True).wait()
 
-cmd = 'xmipp_angular_project_library  -i ../Iter_1/Iter_1_reference_volume.vol -experimental_images ../original_angles.doc -o ReferenceLibrary/ref -sampling_rate 10 -sym c1h -compute_neighbors  -angular_distance -1'
+	cmd = 'mpirun -np %s xmipp_mpi_angular_project_library  -i %s -experimental_images original_angles.doc -o ReferenceLibrary/ref -sampling_rate %s -sym c1h -compute_neighbors  -angular_distance -1' %(incr,model,ang)
+	if debug is True:
+		print cmd
+	subprocess.Popen(cmd,shell=True).wait()
 
-cmd = 'xmipp_angular_projection_matching  -i ../original_angles.doc -o ProjMatchClasses/proj_match -ref ReferenceLibrary/ref -Ri 0 -Ro 64 -max_shift 1000 -search5d_shift 5 -search5d_step  2 -mem 2 -thr 1 -sym c1h'
+	cmd = 'mpirun -np %s xmipp_mpi_angular_projection_matching  -i original_angles.doc -o ProjMatchClasses/proj_match -ref ReferenceLibrary/ref -Ri 0 -Ro %s -max_shift 1000 -search5d_shift %s -search5d_step  %s -mem 2 -thr 1 -sym c1h' %(incr,rad,sx,ts)
+	if debug is True:
+                print cmd
+        subprocess.Popen(cmd,shell=True).wait()
 
-cmd = 'xmipp_angular_class_average  -i ProjMatchClasses/proj_match.doc -lib ReferenceLibrary/ref_angles.doc -dont_write_selfiles  -limit0 -1 -limitR 10 -o ProjMatchClasses/proj_match -split'
+	#cmd = 'xmipp_angular_class_average  -i ProjMatchClasses/proj_match.doc -lib ReferenceLibrary/ref_angles.doc -dont_write_selfiles  -limit0 -1 -limitR 10 -o ProjMatchClasses/proj_match -split'
+	#if debug is True:
+        #        print cmd
+        #subprocess.Popen(cmd,shell=True).wait()
 
-cmd="xmipp_reconstruct_wbp  -i ProjMatch/run1/Iter_1/ProjMatchClasses/proj_match_classes.sel -o vol.vol -threshold 0.02 -sym c1  -use_each_image -weight"
+	#cmd="mpirun -np %s xmipp_mpi_reconstruct_wbp -i ProjMatchClasses/proj_match_classes.sel -o %s_ali.spi -threshold 0.02 -sym c1  -use_each_image -weight" %(incr,model[:-4])
+	#if debug is True:
+        #        print cmd
+        #subprocess.Popen(cmd,shell=True).wait()
 
-cmd="xmipp_fourier_filter -i corrected_reference.vol -o filtered_reference.vol -low_pass 25 -sampling %s" %(pix)
+	#cmd="xmipp_fourier_filter -i %s_ali.spi -o %s_ali_filt25A.spi -low_pass 25 -sampling %s" %(model[:-4],model[:-4],pix)
+	#if debug is True:
+        #        print cmd
+        #subprocess.Popen(cmd,shell=True).wait()
+
+	cmd = 'cp ProjMatchClasses/proj_match.doc xmipp_alignment_info.doc'
+	subprocess.Popen(cmd,shell=True).wait()
+
+	#Clean up
+	if debug is False:
+	
+		cmd = 'rm -r ReferenceLibrary ProjMatchClasses data/ %s_prep.spi original_angles.doc data.sel' %(untilt[:-4])
+		subprocess.Popen(cmd,shell=True).wait()
 
 if __name__ == "__main__":     
 	getXMIPPPath()             

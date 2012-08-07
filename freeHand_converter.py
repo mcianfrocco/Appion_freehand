@@ -8,6 +8,8 @@ import glob
 import subprocess
 from os import system
 import linecache
+import math
+import numpy
 
 #=========================
 def setupParserOptions():
@@ -91,6 +93,114 @@ def getEMANPath():
                 return emanpath        
         print "EMAN2 was not found, make sure eman2/2.05 is in your path"        
         sys.exit()
+
+#==================
+def degreesToRadians(d):
+	return d*math.pi/180
+
+#==================	
+def radiansToDegrees(r):
+	return r*180/math.pi
+
+#==================	
+def EulersToRotationMatrix3DEM(phi, theta, omega):
+	'''
+	phi in degrees, theta in degrees, omega in degrees; takes Euler angles as rotation, tilt, and omega (in degrees) and 
+	converts to a 3x3 rotation matrix, according to ZYZ convention.
+	'''
+
+	phi = degreesToRadians(phi)
+	theta = degreesToRadians(theta)
+	omega = degreesToRadians(omega)
+
+	m = numpy.zeros((3,3), dtype=numpy.float32)
+	m[0][0] = math.cos(omega)*math.cos(theta)*math.cos(phi) - math.sin(omega)*math.sin(phi)
+	m[0][1] = math.cos(omega)*math.cos(theta)*math.sin(phi) + math.sin(omega)*math.cos(phi)
+	m[0][2] = -math.cos(omega)*math.sin(theta)
+	m[1][0] = -math.sin(omega)*math.cos(theta)*math.cos(phi) - math.cos(omega)*math.sin(phi)
+	m[1][1] = -math.sin(omega)*math.cos(theta)*math.sin(phi) + math.cos(omega)*math.cos(phi)
+	m[1][2] = math.sin(omega)*math.sin(theta)
+	m[2][0] = math.sin(theta)*math.cos(phi)
+	m[2][1] = math.sin(theta)*math.sin(phi)
+	m[2][2] = math.cos(theta)
+
+	### round off any values close to 0, default set to 0.001
+	default = 0.000001
+	m = numpy.where(abs(m) < default, 0, m)
+
+	return m
+
+#==================
+def EulersToRotationMatrixXmipp(phi, theta, psi):
+	return EulersToRotationMatrix3DEM(phi, theta, psi) 
+
+#==================
+def EulersToRotationMatrixSPIDER(phi, theta, psi):
+	return EulersToRotationMatrix3DEM(phi, theta, psi)
+
+#==================
+def rotationMatrixToEulers3DEM(m):
+	'''
+	matrix as a numpy array; recovers Euler angles in degrees from 3x3 rotation matrix or array. Procedure assumes that the tilt
+	Euler angle is < 180, i.e. pi. This follows the ZYZ convention of 3DEM with a standard coordinate system 
+	'''
+
+	if type(m) is not numpy.ndarray:
+		m = numpy.asarray(m)
+		
+	### round off any values close to 0, default set to 0.001
+	default = 0.000001
+	m = numpy.where(abs(m) < default, 0, m)
+
+	theta = math.acos(m[2][2])
+	if theta > 0 and theta < math.pi: 		
+		phi = math.atan2(m[2][1], m[2][0])
+		if m[0][2] == 0: ### atan2(0.0,-0.0) returns 180, but we need 0
+			omega = math.atan2(m[1][2], m[0][2])
+		else:
+			omega = math.atan2(m[1][2], -m[0][2])
+	elif round(theta,4) == round(0,4):
+		phi = 0
+		if m[1][0] == 0: ### atan2(0.0,-0.0) returns 180, but we need 0
+			omega = math.atan2(m[1][0], m[0][0])
+		else:
+			omega = math.atan2(-m[1][0], m[0][0])
+	elif round(theta,4) == round(math.pi,4):
+		phi = 0
+		if m[0][0] == 0: ### atan2(0.0,-0.0) returns 180, but we need 0
+			omega = math.atan2(m[1][0], m[0][0])
+		else:
+			omega = math.atan2(m[1][0], -m[0][0])
+	else:
+		phi = 0
+		if m[1][0] == 0: ### atan2(0.0,-0.0) returns 180, but we need 0
+			omega = math.atan2(m[1][0], m[0][0])
+		else:
+			omega = math.atan2(-m[1][0], m[0][0])
+	phi = radiansToDegrees(phi)
+	theta = radiansToDegrees(theta)
+	omega = radiansToDegrees(omega)
+
+	return phi, theta, omega
+
+#==================
+def rotationMatrixToEulersXmipp(m):
+	return rotationMatrixToEulers3DEM(m)
+
+#==================
+def rotationMatrixToEulersSPIDER(m):
+	return rotationMatrixToEulers3DEM(m)	
+	
+#==================
+def calculate_equivalent_Eulers_without_flip(m):
+	''' takes transform matrix, multiplies by mirror_matrix, inverses sign of psi '''
+
+	mmirror = numpy.matrix([[-1,0,0],[0,-1,0],[0,0,-1]])
+	mnew = m * mmirror
+	newphi, newtheta, newpsi = rotationMatrixToEulersXmipp(mnew)
+	### this was assessed empirically, works on synthetic data projected with xmipp_project
+	newpsi = -newpsi
+	return newphi, newtheta, newpsi	
 
 #========================
 def Eman2Freali(az,alt,phi):
@@ -340,18 +450,32 @@ def makeFH_xmipp(f,c,mag,div,debug):
                 if debug is True:
                         print line
                 #Conversion taken from frealign forum
-                psi = -float(l[4])
-                theta = -float(l[3]) + 180
-                phi = float(l[2]) + 180
+                if float(l[8]) == 1:
+			if debug is True:
+				print 'Flipping particle %s' %(l[0])
+			
+			rot = float(l[2])		
+			tilt = float(l[3])
+			psi = float(l[4])
 
-		if psi < 0:
-			psi = psi + 360
+			m = EulersToRotationMatrixXmipp(rot,tilt,psi)
+			newrot, newtilt, newpsi = calculate_equivalent_Eulers_without_flip(m)
 
-                shiftx = -float(l[5])/float(div)
-                shifty = float(l[6])/float(div)
+		else:
 
-                ctf2 = linecache.getline(c,count)
-                ctf = ctf2.split()
+                        newrot = float(l[2])
+                        newtilt = float(l[3])
+                        newpsi = float(l[4])
+
+		psi = newpsi
+		theta = -1*newtilt
+		phi = newrot
+
+                shiftx = -1*float(l[5])/float(div)
+                shifty = -1*float(l[6])/float(div)
+
+		ctf2 = linecache.getline(c,count)
+		ctf = ctf2.split()
                 df1 = float(ctf[0])
                 df2 = float(ctf[1])
                 astig = float(ctf[2])
