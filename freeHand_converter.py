@@ -26,7 +26,7 @@ def setupParserOptions():
         parser.add_option("-o",dest="align",type="string", metavar="FILE",
                 help="File with alignment info")
         parser.add_option("--prog",dest="prog",type="string", metavar="FILE",
-                help="Program for 3D alignment: eman2, frealign, xmipp")
+                help="Program for 3D alignment: eman2, frealign, xmipp, eman1")
         parser.add_option("-d", action="store_true",dest="debug",default=False,
                 help="debug")
         options,args = parser.parse_args()
@@ -486,7 +486,7 @@ def makeFH_xmipp(f,c,mag,div,debug):
 
         o1.write("C\n")
 
-#========================
+#====================
 def eman2(params):
 
 	param = params['param']
@@ -603,6 +603,9 @@ def xmipp(params):
 		print cmd
         subprocess.Popen(cmd,shell=True).wait()
 	
+#==============
+def eman1(params):
+	print '\nInput EMAN1 angle conversions from APPION\n'
 
 if __name__ == "__main__":     
 	getEMANPath()             
@@ -620,5 +623,8 @@ if __name__ == "__main__":
 	if params['prog'] == 'xmipp':
                 xmipp(params)
 
-	if params['prog'] != 'eman2' and params['prog'] != 'frealign' and params['prog'] != 'xmipp':
+	if params['prog'] == 'eman1':
+		eman1(params)
+
+	if params['prog'] != 'eman2' and params['prog'] != 'frealign' and params['prog'] != 'xmipp' and params['prog'] != 'eman1':
 		print 'prog=%s unknown option specified' %(params['prog'])
