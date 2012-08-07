@@ -62,35 +62,14 @@ def file_len(fname):
     return i + 1
 
 #========================
-def getEMANPath():        
+def getXMIPPPath():        
         ### get the imagicroot directory        
-        emanpath = subprocess.Popen("env | grep EMAN2DIR", shell=True, stdout=subprocess.PIPE).stdout.read().strip()        
+        xpath = subprocess.Popen("env | grep xmipp-2.4-mpi", shell=True, stdout=subprocess.PIPE).stdout.read().strip()        
 
-        if emanpath:                
-                emanpath = emanpath.replace("EMAN2DIR=","")                
-        if os.path.exists(emanpath):                        
-                return emanpath        
-        print "EMAN2 was not found, make sure eman2/2.05 is in your path"        
-        sys.exit()
-
-#========================
-def getOPENMPIPath():
-        ### get the openmpi directory        
-        openpath = subprocess.Popen("env | grep MPIHOME", shell=True, stdout=subprocess.PIPE).stdout.read().strip()
-        test = openpath.find('imagic')
-	if test >= 0:
-                print "OPENMPI is not loaded, make sure it is in your path"
-                sys.exit()
-
-	if test is None:
-
-	        if openpath:
-        	        openpath = openpath.replace("MPIHOME=","")
-	        if os.path.exists(openpath):
-        	        return openpath
-	        print "OPENMPI is not loaded, make sure it is in your path"
-        	sys.exit()
-
+        if len(xpath) == 0:
+		print "XMIPP was not found, make sure xmipp-2.4-mpi is in your path"
+	        sys.exit()
+        	
 #========================
 def grep(string,list):
     expr = re.compile(string)
@@ -303,11 +282,20 @@ def align(params):
 	cmd = 'rm logfile* start.hdf %s_prep.*' %(untilt[:-4])
 	subprocess.Popen(cmd,shell=True).wait()
 
+cmd = 'xmipp_header_extract  -i /home/michael/XMIPP_to_FreeHand/xmipp/ProjMatch2/run1/data.sel -o /home/michael/XMIPP_to_FreeHand/xmipp/ProjMatch2/run1/original_angles.doc'
+
+cmd = 'xmipp_angular_project_library  -i ../Iter_1/Iter_1_reference_volume.vol -experimental_images ../original_angles.doc -o ReferenceLibrary/ref -sampling_rate 10 -sym c1h -compute_neighbors  -angular_distance -1'
+
+cmd = 'xmipp_angular_projection_matching  -i ../original_angles.doc -o ProjMatchClasses/proj_match -ref ReferenceLibrary/ref -Ri 0 -Ro 64 -max_shift 1000 -search5d_shift 5 -search5d_step  2 -mem 2 -thr 1 -sym c1h'
+
+cmd = 'xmipp_angular_class_average  -i ProjMatchClasses/proj_match.doc -lib ReferenceLibrary/ref_angles.doc -dont_write_selfiles  -limit0 -1 -limitR 10 -o ProjMatchClasses/proj_match -split'
+
+cmd="xmipp_reconstruct_wbp  -i ProjMatch/run1/Iter_1/ProjMatchClasses/proj_match_classes.sel -o vol.vol -threshold 0.02 -sym c1  -use_each_image -weight"
+
+cmd="xmipp_fourier_filter -i corrected_reference.vol -o filtered_reference.vol -low_pass 25 -sampling %s" %(pix)
+
 if __name__ == "__main__":     
-	getEMANPath()             
-	getOPENMPIPath()
-	from EMAN2 import *     
-	from sparx  import *     
+	getXMIPPPath()             
 	params=setupParserOptions()     
 	checkConflicts(params)
 	align(params)
