@@ -25,3 +25,15 @@ ZERO
 $ang
 NO
 EOF
+/opt/qb3/imagic-110326/incore/incnorvar.e <<EOF
+SOF
+my_forw
+my_forw1
+0.9,0.2
+10.0
+EOF
+
+rm my_forw.*
+mv my_forw1.img my_forw.img
+mv my_forw1.hed my_forw.hed
+rm my_forw1.*

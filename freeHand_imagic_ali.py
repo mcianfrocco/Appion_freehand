@@ -249,6 +249,16 @@ def align(params):
 	cmd = 'proc2d %s %s_prep.img apix=%s hp=%s lp=%s' %(untilt,untilt[:-4],pix,min_res,max_res)
         subprocess.Popen(cmd,shell=True).wait()
 
+	#Create blank header
+	cmd = '%s/test_im.b %s %s' %(cwd,tot,box)
+	subprocess.Popen(cmd,shell=True).wait()
+
+	cmd = 'rm %s_prep.hed' %(untilt[:-4])
+	subprocess.Popen(cmd,shell=True).wait()
+
+	cmd = 'cp junk.hed %s_prep.hed' %(untilt[:-4])
+	subprocess.Popen(cmd,shell=True).wait()
+
 	#Convert model
 	cmd = '%s/spi_to_im3D.b %s %s' %(cwd,model,pix)
 	subprocess.Popen(cmd,shell=True).wait()
