@@ -24,9 +24,9 @@ def setupParserOptions():
         parser.add_option("-c",dest="ctf",type="string", metavar="FILE",
                 help="Per-particle ctf-information file")
         parser.add_option("-o",dest="align",type="string", metavar="FILE",
-                help="File with alignment info")
+                help="File with alignment info (If imagic: MRA particle stack)")
         parser.add_option("--prog",dest="prog",type="string", metavar="FILE",
-                help="Program for 3D alignment: eman2, frealign, xmipp, eman1")
+                help="Program for 3D alignment: eman1, eman2, frealign, imagic, xmipp")
         parser.add_option("-d", action="store_true",dest="debug",default=False,
                 help="debug")
         options,args = parser.parse_args()
@@ -486,6 +486,44 @@ def makeFH_xmipp(f,c,mag,div,debug):
 
         o1.write("C\n")
 
+#===================
+def make_micro_file(ctf,maxi,debug):
+        i = 1
+        o = open('%s_micro.plt' %(ctf[:-4]),'w')
+
+	c = linecache.getline(ctf,1)
+	c1 = c.split()
+	m = 1
+	ctf_test = float(c1[0])
+	mic_cmd='%s\n' %(m)
+	i = i + 1
+	
+        while i <= float(maxi):
+                c = linecache.getline(ctf,i)
+		c1 = c.split()
+
+		if float(c1[0]) != ctf_test:
+			ctf_test = float(c1[0])
+                        m = m + 1
+                       	mic_cmd+='%s\n' %(m)
+	        else:
+                       	mic_cmd+='%s\n' %(m)
+		i = i + 1
+        o.write(mic_cmd)
+
+#====================
+def imagic_param(f,o):
+	o1 = open(o,'a')
+	o1.write("C Frealign format parameter file created from Search_fspace parameter file\n")
+	o1.write("C\n")
+	o1.write("C           PSI   THETA     PHI     SHX     SHY    MAG   FILM      DF1      DF2  ANGAST  CCMax\n")
+	f1 = open(f,'r')
+	
+	for line in f1:
+		o1.write(line)
+
+	o1.write("C\n")
+
 #====================
 def eman2(params):
 
@@ -607,6 +645,91 @@ def xmipp(params):
 def eman1(params):
 	print '\nInput EMAN1 angle conversions from APPION\n'
 
+#==============
+def imagic(params):
+
+	param = params['param']
+
+        #Get current working directory
+        script = sys.argv[0]
+        cwd = '%s/lib' %(script[:-22])
+
+        #Get parameter info: mag
+        p = open(param,'r')
+        a = 'mag'
+        angl = grep(a,p)
+        aL = angl.split()
+        mag = aL[2]
+
+	#Get parameter info: mag
+        p = open(param,'r')
+        a = 'boxSize'
+        angl = grep(a,p)
+        aL = angl.split()
+        box = aL[2]
+
+
+       #Get parameter info: pixel size
+        p = open(param,'r')
+        a = 'pix'
+        angl = grep(a,p)
+        aL = angl.split()
+        pix = aL[2]
+
+	#Get parameter info: pixel size
+        p = open(param,'r')
+        a = 'num_part'
+        angl = grep(a,p)
+        aL = angl.split()
+        tot = aL[2]
+
+        tilt = params['tilted']
+        ctf = params['ctf']
+        paramout = params['align']
+        debug = params['debug']
+        model = params['model']
+        f = params['align']
+
+	make_micro_file(ctf,tot,debug)
+	
+	#Clear header of tilted stack:
+	cmd = '%s/test_im.b %s %s' %(cwd,tot,box)
+	subprocess.Popen(cmd,shell=True).wait()
+	
+	cmd = 'rm %s.hed' %(tilt[:-4])
+	subprocess.Popen(cmd,shell=True).wait()
+
+	cmd = 'cp junk.hed %s.hed' %(tilt[:-4])
+	subprocess.Popen(cmd,shell=True).wait()
+	
+	cmd = 'cp %s %s.plt' %(ctf,ctf[:-4])
+	subprocess.Popen(cmd,shell=True).wait()
+
+	#Convert parameters
+	cmd = '%s/im_to_fre.b %s %s %s %s_micro.plt %s.plt %s'%(cwd,tilt[:-4],paramout[:-4],paramout[:-4],ctf[:-4],ctf[:-4],mag)
+	if debug is True:
+		print cmd
+	subprocess.Popen(cmd,shell=True).wait()
+
+	#Append output parameter file
+	imagic_param('%s.par'%(paramout[:-4]),'%s_format.par'%(paramout[:-4]))
+
+	#Convert particles
+	cmd = 'proc2d %s %s_flip.img flip'%(tilt,tilt[:-4])
+	subprocess.Popen(cmd,shell=True).wait()
+
+	im_to_mrc('%s_flip.img' %(tilt[:-4]),debug)	
+	
+	cmd = 'mv %s_flip.mrc %s.mrc' %(tilt[:-4],tilt[:-4])
+	subprocess.Popen(cmd,shell=True).wait()
+
+	#Convert model
+	cmd = 'proc3d %s %s.mrc' %(model,model[:-4])	
+	subprocess.Popen(cmd,shell=True).wait()
+	#Clean up
+	cmd = 'rm junk.* %s_micro.plt %s.plt %s.mrc %s_flip.*'%(ctf[:-4],ctf[:-4],paramout[:-4],tilt[:-4])
+	subprocess.Popen(cmd,shell=True).wait()
+
 if __name__ == "__main__":     
 	getEMANPath()             
 	from EMAN2 import *     
@@ -626,5 +749,8 @@ if __name__ == "__main__":
 	if params['prog'] == 'eman1':
 		eman1(params)
 
-	if params['prog'] != 'eman2' and params['prog'] != 'frealign' and params['prog'] != 'xmipp' and params['prog'] != 'eman1':
+	if params['prog'] == 'imagic':
+                imagic(params)
+
+	if params['prog'] != 'eman2' and params['prog'] != 'frealign' and params['prog'] != 'xmipp' and params['prog'] != 'eman1' and params['prog'] != 'imagic':
 		print 'prog=%s unknown option specified' %(params['prog'])

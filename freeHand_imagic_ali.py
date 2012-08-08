@@ -271,6 +271,10 @@ def align(params):
 	cmd = '%s/mra.b %s_prep %s_prep_ali my_forw %s' %(cwd,untilt[:-4],untilt[:-4],incr)
 	subprocess.Popen(cmd,shell=True).wait()
 
+	#Clean up
+	cmd = 'rm %s_prep.* my_forw.* %s.img %s.hed junk.*' %(untilt[:-4],model[:-4],model[:-4])
+	subprocess.Popen(cmd,shell=True).wait()
+
 if __name__ == "__main__":     
 	getIMAGICPath()             
 	params=setupParserOptions()     
