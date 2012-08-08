@@ -21,6 +21,8 @@ def setupParserOptions():
                 help="Parameter file with refinement info (free_param.par)")
         parser.add_option("-c",dest="ctf",type="string", metavar="FILE",
                 help="Per-particle CTF and alignment info (FREALIGN format)")
+	parser.add_option("-x",action="store_true",dest="xmipp",default=False,
+                help="Flag if data came from xmipp alignment")
         parser.add_option("-d", action="store_true",dest="debug",default=False,
                 help="debug")
         options,args = parser.parse_args()
@@ -253,7 +255,7 @@ def fastFree(params):
         calc = pp3[2]
         
 	#Run Free-Hand test                
-	info = linecache.getline(ctf,4)                
+	info = linecache.getline(ctf,5)                
 
 	i = info.split()                
 
@@ -369,6 +371,8 @@ def plotFH(params,ccp4_path):
 	param = params['param']
 	debug = params['debug']
 	model = params['model']
+	xmipp = params['xmipp']
+
         #Free hand angular search
         p8 = open(param,'r')
         fs1 = 'freeHand_ang_search'
@@ -407,6 +411,9 @@ def plotFH(params,ccp4_path):
 		subprocess.Popen(cmd,shell=True).wait()
 
 		i = i + 1
+
+	if xmipp is True:
+		
 
 	cmd = 'e2proc2d.py model00_plots_CC_v101_merge.img model00_plots_CC_v101_merge.mrc --twod2threed'
 	if debug is True:

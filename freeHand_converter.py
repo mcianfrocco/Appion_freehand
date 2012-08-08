@@ -16,7 +16,7 @@ def setupParserOptions():
         parser = optparse.OptionParser()
         parser.set_usage("%prog -t <untilted stack> -m <model> -p <parameter file> -c <ctf> -o <parms> --prog=NAME")
         parser.add_option("-t",dest="tilted",type="string",metavar="FILE",
-                help="tilted stack (black, raw particles in IMAGIC format)")
+                help="tilted stack (black, raw particles in IMAGIC format) (If SPIDER alignment, SPIDER particle stack)")
         parser.add_option("-m",dest="model",type="string",metavar="FILE",
                 help="3D model for used in alignment (Single SPIDER or MRC volume, or multi-volume HDF)")
         parser.add_option("-p",dest="param",type="string", metavar="FILE",
@@ -26,7 +26,7 @@ def setupParserOptions():
         parser.add_option("-o",dest="align",type="string", metavar="FILE",
                 help="File with alignment info (If imagic: MRA particle stack)")
         parser.add_option("--prog",dest="prog",type="string", metavar="FILE",
-                help="Program for 3D alignment: eman1, eman2, frealign, imagic, xmipp")
+                help="Program for 3D alignment: eman1, eman2, frealign, imagic, spider, xmipp")
         parser.add_option("-d", action="store_true",dest="debug",default=False,
                 help="debug")
         options,args = parser.parse_args()
@@ -427,6 +427,54 @@ def makeFH(f,c,mag,div,debug):
 
 	o1.write("C\n")
 
+#==========================
+def makeFH_spider(f,c,mag,div,debug):
+
+        #Convert parameter file format with CTF info
+        f1 = open(f,'r')
+        fout = '%s_format.par' %(f[:-4])
+        o1 = open(fout,'a')
+        if debug is True:
+                print 'c = %s' %(c)
+        o1.write("C Frealign format parameter file created from Search_fspace parameter file\n")
+        o1.write("C\n")
+        o1.write("C           PSI   THETA     PHI     SHX     SHY    MAG   FILM      DF1      DF2  ANGAST  CCMax\n")
+
+        count = 1
+
+        for line in f1:
+
+                l = line.split()
+
+                if l[0] == ';spi/spi':
+                        continue
+                if debug is True:
+                        print line
+			print l[0]
+
+                psi = float(l[2])
+                theta = float(l[3])
+                phi = float(l[4])
+
+                shiftx = float(l[5])/float(div)
+                shifty = float(l[6])/float(div)
+
+                ctf2 = linecache.getline(c,count)
+                ctf = ctf2.split()
+		if debug is True:
+			print ctf2
+			print ctf
+                df1 = float(ctf[0])
+                df2 = float(ctf[1])
+                astig = float(ctf[2])
+
+                o1.write("%7d%8.3f%8.3f%8.3f%8.3f%8.3f%8.0f%6d%9.1f%9.1f%8.2f%7.2f\n" %(count,psi,theta,phi,shiftx,shifty,float(mag),1,df1,df2,astig,50))
+
+                count = count + 1
+
+        o1.write("C\n")
+
+
 def makeFH_xmipp(f,c,mag,div,debug):
 
         #Convert parameter file format with CTF info
@@ -730,6 +778,31 @@ def imagic(params):
 	cmd = 'rm junk.* %s_micro.plt %s.plt %s.mrc %s_flip.*'%(ctf[:-4],ctf[:-4],paramout[:-4],tilt[:-4])
 	subprocess.Popen(cmd,shell=True).wait()
 
+#===============
+def spider(params):
+
+        param = params['param']
+
+        #Get parameter info: mag
+        p = open(param,'r')
+        a = 'mag'
+        angl = grep(a,p)
+        aL = angl.split()
+        mag = aL[2]
+
+        tilt = params['tilted']
+        ctf = params['ctf']
+        debug = params['debug']
+        model = params['model']
+        f = params['align']
+
+	makeFH_spider(f,ctf,mag,1,debug)
+	im_to_mrc(tilt,debug)
+	
+	#Convert model
+        cmd = 'proc3d %s %s.mrc' %(model,model[:-4])
+        subprocess.Popen(cmd,shell=True).wait()
+	
 if __name__ == "__main__":     
 	getEMANPath()             
 	from EMAN2 import *     
@@ -752,5 +825,8 @@ if __name__ == "__main__":
 	if params['prog'] == 'imagic':
                 imagic(params)
 
-	if params['prog'] != 'eman2' and params['prog'] != 'frealign' and params['prog'] != 'xmipp' and params['prog'] != 'eman1' and params['prog'] != 'imagic':
+	if params['prog'] == 'spider':
+		spider(params)
+
+	if params['prog'] != 'eman2' and params['prog'] != 'frealign' and params['prog'] != 'xmipp' and params['prog'] != 'eman1' and params['prog'] != 'imagic' and params['prog'] != 'spider':
 		print 'prog=%s unknown option specified' %(params['prog'])
