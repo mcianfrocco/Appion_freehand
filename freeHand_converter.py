@@ -733,7 +733,7 @@ def xmipp(params):
 	
 #==============
 def eman1(params):
-	print '\nInput EMAN1 angle conversions from APPION\n'
+	print '\nImplement EMAN1 angle conversion to FREALIGN (APPION)\n'
 
 #==============
 def imagic(params):
