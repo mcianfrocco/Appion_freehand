@@ -327,7 +327,7 @@ def fastFree(params):
 		tmp.close()
 
 		cmd = 'chmod +x tmp%01d.csh' %(iteration)
-		subprocess.Popen(cmd,shell=True)
+		subprocess.Popen(cmd,shell=True).wait()
 	
 		cmd = './tmp%01d.csh' %(iteration)
 		subprocess.Popen(cmd,shell=True)
@@ -413,7 +413,25 @@ def plotFH(params,ccp4_path):
 		i = i + 1
 
 	if xmipp is True:
+
+		#Mirror CC images across Y-axis
+		cmd = 'proc2d model00_plots_CC_v101_merge.img model00_plots_CC_v101_merge_rot.img rot=-90'
+		subprocess.Popen(cmd,shell=True).wait()
+
+		cmd = 'proc2d model00_plots_CC_v101_merge_rot.img model00_plots_CC_v101_merge_rot_flip.img flip'
+		subprocess.Popen(cmd,shell=True).wait()	
+
+		cmd = 'proc2d model00_plots_CC_v101_merge_rot_flip.img model00_plots_CC_v101_merge_rot_flip_rot.img rot=90'
+		subprocess.Popen(cmd,shell=True).wait()
+
+		cmd = 'rm model00_plots_CC_v101_merge.* model00_plots_CC_v101_merge_rot.*'
+		subprocess.Popen(cmd,shell=True).wait()
 		
+		cmd = 'mv model00_plots_CC_v101_merge_rot_flip_rot.img model00_plots_CC_v101_merge.img'
+		subprocess.Popen(cmd,shell=True).wait()
+
+		cmd = 'mv model00_plots_CC_v101_merge_rot_flip_rot.hed model00_plots_CC_v101_merge.hed'
+		subprocess.Popen(cmd,shell=True).wait()
 
 	cmd = 'e2proc2d.py model00_plots_CC_v101_merge.img model00_plots_CC_v101_merge.mrc --twod2threed'
 	if debug is True:
