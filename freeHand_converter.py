@@ -320,20 +320,23 @@ def eman2_angConv(paramout,num_mod,ctf,mag,model,tilt,debug):
 			l = line.split()
 			if debug is True:
 				print l		
-			parmPSI = float(l[0])
-			parmTHETA = float(l[1])
-			parmPHI = float(l[2])
-			sx =(float(l[3]))
-			sy =(float(l[4]))
-			model1 = float(l[5])
+			parmPSI = float(l[1])
+			parmTHETA = float(l[2])
+			parmPHI = float(l[3])
+			sx =(float(l[4]))
+			sy =(float(l[5]))
+			model1 = float(l[6])
 			#Convert euler angles from EMAN2 to FREALIGN/SPIDER convention
+			if debug is True:
+				print 'parmPSI = %s	parmTHETA = %s	parmPHI = %s	' %(parmPSI,parmTHETA,parmPHI)
+				
 			psi,theta,phi = Eman2Freali(parmPSI,parmTHETA,parmPHI)	
 			out.write("%s 	%s	%s	%s	%s	%s\n"%(psi,theta,phi,sx,sy,model1))
 		
 		f.close()
 		out.close()
 
-		makeFH('%s_freeHand' %(parm),'%s_model%02d.par' %(ctf[:-4],int(mod_count)),mag,1,debug)
+		makeFH_eman2('%s_freeHand' %(parm),'%s_model%02d.par' %(ctf[:-4],int(mod_count)),mag,1,debug)
 
 		eman2_mods(num_mod,model,mod_count,debug)
 
@@ -386,7 +389,7 @@ def eman2_mods(num_mod,model,mod_count,debug):
                 subprocess.Popen(cmd,shell=True).wait()
 
 #==================
-def makeFH(f,c,mag,div,debug):
+def makeFH_frealign(f,c,mag,div,debug):
 
 	#Convert parameter file format with CTF info
 	f1 = open(f,'r')
@@ -426,6 +429,45 @@ def makeFH(f,c,mag,div,debug):
 		count = count + 1
 
 	o1.write("C\n")
+#==================
+def makeFH_eman2(f,c,mag,div,debug):
+
+        #Convert parameter file format with CTF info
+        f1 = open(f,'r')
+        fout = '%s_format.par' %(f[:-4])
+        o1 = open(fout,'a')
+        if debug is True:
+                print 'c = %s' %(c)
+        o1.write("C Frealign format parameter file created from Search_fspace parameter file\n")
+        o1.write("C\n")
+        o1.write("C           PSI   THETA     PHI     SHX     SHY    MAG   FILM      DF1      DF2  ANGAST  CCMax\n")
+
+        count = 1
+
+        for line in f1:
+
+                l = line.split()
+
+                if debug is True:
+                        print line
+                psi = float(l[0])
+                theta = float(l[1])
+                phi = float(l[2])
+
+                shiftx = float(l[3])/float(div)
+                shifty = float(l[4])/float(div)
+
+                ctf2 = linecache.getline(c,count)
+                ctf = ctf2.split()
+                df1 = float(ctf[0])
+                df2 = float(ctf[1])
+                astig = float(ctf[2])
+
+                o1.write("%7d%8.3f%8.3f%8.3f%8.3f%8.3f%8.0f%6d%9.1f%9.1f%8.2f%7.2f\n" %(count,psi,theta,phi,shiftx,shifty,float(mag),1,df1,df2,astig,50))
+
+                count = count + 1
+
+        o1.write("C\n")
 
 #==========================
 def makeFH_spider(f,c,mag,div,debug):
@@ -647,7 +689,7 @@ def frealign(params):
         model = params['model']
 	f = params['align'] 
 	
-	makeFH(f,ctf,mag,pix,debug)
+	makeFH_frealign(f,ctf,mag,pix,debug)
 	im_to_mrc(tilt,debug)
 
 def xmipp(params):
